@@ -1,0 +1,19 @@
+End-to-End Dashboard & Impact
+I designed, deployed, and managed a centralized Tableau dashboard connecting directly to Snowflake views to operationalize these insights.
+
+Design & Wireframing: Built top-level executive summary KPIs (Global Active Learners, Course Completion Rate, Avg. Time-to-Completion) backed by granular filters for subscription tiers and regional cohorts.
+
+Adoption & Access Control: Published to Tableau Server with role-based permissions (CSMs only viewed their assigned enterprise accounts).
+
+Business Impact:
+
+Weekly active dashboard users grew by 65% within the first month.
+
+The analysis uncovered a 40% drop-off rate in a specific technical onboarding module.
+
+Partnering with the Product and UX teams to streamline this bottleneck improved overall cohort completion rates by 18% the following quarter.
+
+📈 Key Learnings & Takeaways
+Performance Tuning Matters: Moving away from querying raw, unindexed event logs down to partitioned, pre-aggregated tables cut core reporting query times from minutes to under 5 seconds.
+
+Data Must Be Actionable: Partnering closely with stakeholders ensured that the anomaly-detection model didn't just report numbers, but actively triggered automated CSM workflows before renewal dates.
