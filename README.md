@@ -1,26 +1,49 @@
 # enterprise-user-engagement-analytics
-This case study demonstrates an end-to-end data analytics solution built to address a critical SaaS retention challenge: identifying enterprise accounts experiencing sudden drops in active user engagement before renewal periods. Using Snowflake, Advanced SQL (Window Functions & CTEs), and Tableau, this project automates cohort drop-off tracking and surfaces root-cause drivers (feature adoption vs. seat utilization) for Customer Success and Product teams.
-
-🛠️ Tech Stack & Architecture
-Data Warehouse: Snowflake (Dimensional Star Schema, Table Clustering, Incremental Loading)
-
-Transformation & Querying: Advanced SQL (CTEs, LAG(), PERCENT_RANK(), Multi-table Joins)
-
-Data Visualization & BI: Tableau Server (Role-based row-level permissions, Automated weekly extracts)
-
-Version Control: Git / GitHub
-
-🔍 1. The Business Problem
-SaaS enterprise accounts often show subtle declines in user engagement weeks before formally deciding not to renew their contracts. Product Operations and Customer Success teams lacked a proactive, automated mechanism to:
-
-Automatically flag accounts deviating from their historical usage baselines.
-
-Differentiate between macro-level seat shrinkage versus isolated feature-level friction points.
-
-Prioritize high-risk accounts for CSM intervention.
-
-💻 2. Data Engineering & SQL Implementation
-To handle millions of high-volume granular event logs efficiently, the query layer was optimized to run against pre-aggregated summary layers partitioned by date and organization ID.
-
-Sample Core Logic (Drop-off Detection)
-The following production-style SQL snippet utilizes window functions to compare current month-over-month active usage against a rolling 6-month historical baseline, automatically flagging anomalies:
+WITH monthly_account_activity AS (
+    SELECT
+        org_id,
+        DATE_TRUNC('month', event_timestamp) AS activity_month,
+        COUNT(DISTINCT user_id) AS active_users,
+        COUNT(DISTINCT session_id) AS total_sessions
+    FROM 
+        prod.telemetry.user_session_logs
+    WHERE 
+        event_timestamp >= DATEADD('month', -6, CURRENT_DATE())
+    GROUP BY 
+        org_id, 
+        DATE_TRUNC('month', event_timestamp)
+),
+historical_baseline AS (
+    SELECT
+        org_id,
+        activity_month,
+        active_users,
+        -- Calculate rolling 6-month average and standard deviation of active users
+        AVG(active_users) OVER (
+            PARTITION BY org_id 
+            ORDER BY activity_month 
+            ROWS BETWEEN 6 PRECEDING AND 1 PRECEDING
+        ) AS baseline_avg_users,
+        LAG(active_users, 1) OVER (
+            PARTITION BY org_id 
+            ORDER BY activity_month
+        ) AS prev_month_users
+    FROM 
+        monthly_account_activity
+)
+SELECT
+    org_id,
+    activity_month,
+    active_users,
+    prev_month_users,
+    ROUND(SAFE_DIVIDE(active_users - prev_month_users, prev_month_users) * 100, 2) AS mom_user_change_pct,
+    CASE 
+        WHEN active_users < (baseline_avg_users * 0.80) THEN 'High Risk - Usage Drop'
+        ELSE 'Stable'
+    END AS account_health_status
+FROM 
+    historical_baseline
+WHERE 
+    prev_month_users IS NOT NULL
+ORDER BY 
+    mom_user_change_pct ASC;
